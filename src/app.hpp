@@ -17,8 +17,7 @@ public:
   auto run() const -> void;
 
 private:
-  ftxui::App terminalApp = ftxui::App::TerminalOutput();
-  ;
+  ftxui::App terminalApp = ftxui::App::FullscreenAlternateScreen();
 };
 
 } // namespace tufile

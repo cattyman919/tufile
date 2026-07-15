@@ -31,9 +31,11 @@ auto tufile::App::run() const -> void {
 
   auto middle_pane = menu | ftxui::border;
 
+  // Parent component
   auto left_pane =
       ftxui::Renderer([] { return ftxui::text("Left Pane") | ftxui::border; });
 
+  // File / Directory Info
   auto right_pane =
       ftxui::Renderer([] { return ftxui::text("Right Pane") | ftxui::border; });
 
@@ -42,5 +44,5 @@ auto tufile::App::run() const -> void {
 
   // auto layout = ftxui::hbox({component, component, component});
 
-  this->terminalApp.TerminalOutput().Loop(component);
+  this->terminalApp.FullscreenAlternateScreen().Loop(component);
 }
