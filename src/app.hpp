@@ -2,17 +2,9 @@
 
 #include <ftxui/component/app.hpp>
 #include <string>
-#include <tuple>
 #include <vector>
 
 namespace tufile {
-
-using Keys = std::vector<std::string>;
-using Action = std::string;
-using HelperKey = std::tuple<Keys, Action>;
-
-const std::array<HelperKey, 1> HELPER_KEYS{
-    HelperKey{{"Up", "Down", "j", "k"}, "Navigate"}};
 
 class App final {
 public:
@@ -33,6 +25,14 @@ private:
   bool show_hidden_files{false};
 
   auto handle_key_event(ftxui::Event event) -> bool;
-};
 
-} // namespace tufile
+  // 1. Define Action inside App
+  struct Action {
+    std::vector<std::string> keys;
+    std::string description;
+    std::function<bool(App&)> action;
+  };
+
+  static const std::array<Action, 2> keybinds;
+};
+}; // namespace tufile

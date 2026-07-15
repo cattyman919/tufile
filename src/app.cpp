@@ -1,6 +1,7 @@
 #include "app.hpp"
 #include <array>
 #include <cassert>
+#include <cstddef>
 #include <filesystem>
 #include <ftxui/component/app.hpp>
 #include <ftxui/component/component.hpp>
@@ -13,6 +14,19 @@
 #include <ftxui/screen/string.hpp>
 #include <iostream>
 #include <vector>
+
+const std::array<tufile::App::Action, 2> tufile::App::keybinds{
+    App::Action{.keys = {"q"},
+                .description = "Quit",
+                .action = [](App& app) -> bool {
+                  // Success! App is complete, so we can access private members.
+                  app.terminal_app.Exit();
+                  return true;
+                }},
+    App::Action{.keys = {"Up", "Down", "j", "k"},
+                .description = "Navigate",
+                // Removed 'app' name to fix unused parameter warning
+                .action = [](App&) -> bool { return false; }}};
 
 auto tufile::App::run() -> void {
 
@@ -49,19 +63,30 @@ auto tufile::App::run() -> void {
 
   auto footer = [&] {
     std::vector<ftxui::Element> elements;
-    elements.reserve(tufile::HELPER_KEYS.size());
+    elements.reserve(50);
 
-    for (const auto& [keys, action] : tufile::HELPER_KEYS) {
-      for (const auto& key : keys) {
+    for (size_t index{0}; const auto& action : tufile::App::keybinds) {
+      for (size_t index{0}; const auto& key : action.keys) {
         elements.emplace_back(ftxui::text(key) |
                               ftxui::color(ftxui::Color::Blue));
-        elements.emplace_back(ftxui::text("/") |
-                              ftxui::color(ftxui::Color::Grey70));
+
+        if (index != action.keys.size() - 1) {
+          elements.emplace_back(ftxui::text("/") |
+                                ftxui::color(ftxui::Color::Grey70));
+        }
+        index++;
       }
       elements.emplace_back(ftxui::text(": ") |
                             ftxui::color(ftxui::Color::Grey70));
-      elements.emplace_back(ftxui::text(action) |
+      elements.emplace_back(ftxui::text(action.description) |
                             ftxui::color(ftxui::Color::Plum1));
+
+      if (index != tufile::App::keybinds.size() - 1) {
+        elements.emplace_back(ftxui::text(" | ") |
+                              ftxui::color(ftxui::Color::Grey70));
+      }
+
+      index++;
     }
     return ftxui::hbox(elements);
   }();
@@ -70,17 +95,18 @@ auto tufile::App::run() -> void {
   auto right_pane = ftxui::text("Right Pane") | ftxui::border;
 
   auto component =
-      ftxui::Renderer(middle_pane,
-                      [&] {
-                        return ftxui::vbox({
-                            ftxui::hbox({
-                                left_pane | ftxui::flex,
-                                middle_pane->Render() | ftxui::flex,
-                                right_pane | ftxui::flex,
-                            }) | ftxui::flex_grow,
-                            footer | ftxui::center,
-                        });
-                      }) |
+      ftxui::Renderer(
+          middle_pane,
+          [&] {
+            return ftxui::vbox({
+                ftxui::hbox({
+                    left_pane | ftxui::flex_grow_factor(1),
+                    middle_pane->Render() | ftxui::flex_grow_factor(4),
+                    right_pane | ftxui::flex_grow_factor(3),
+                }) | ftxui::flex_grow,
+                footer | ftxui::center,
+            });
+          }) |
       ftxui::CatchEvent(
           [this](ftxui::Event event) { return this->handle_key_event(event); });
 
@@ -94,5 +120,11 @@ auto tufile::App::handle_key_event(ftxui::Event event) -> bool {
     this->terminal_app.Exit();
     return true; // swallowed, menu never sees 'q'
   }
+
+  if (event == ftxui::Event::Character('.')) {
+    this->show_hidden_files = true;
+    return true;
+  }
+
   return false; // everything else passes through to menu
 }
