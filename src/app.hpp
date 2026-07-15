@@ -10,7 +10,7 @@
 
 namespace tufile {
 
-constexpr size_t TOTAL_KEYBINDS = 3;
+constexpr size_t TOTAL_KEYBINDS = 5;
 
 class App final {
 public:
@@ -48,16 +48,22 @@ private:
 
   int selected_index{0};
 
-  auto get_cwd_file_entries() -> std::vector<std::filesystem::directory_entry>;
-  auto get_parent_file_entries()
-      -> std::vector<std::filesystem::directory_entry>;
+  auto get_file_entries(const std::filesystem::path& path)
+      -> const std::vector<std::filesystem::directory_entry>;
 
   auto handle_event(ftxui::Event event) -> bool;
 
+  // update current refresh state
+  auto refresh_state(const std::filesystem::path& path) -> void;
+
+  // update to a new directory path
+  // auto next_dir_state(const std::filesystem::path& path) -> void;
+  // auto prev_dir_state(const std::filesystem::path& path) -> void;
+
   /// View
-  auto footer_view() -> ftxui::Element;
-  auto left_pane_view() -> ftxui::Element;
-  auto middle_pane_view() -> ftxui::Component;
-  auto right_pane_view() -> ftxui::Element;
+  auto footer_view() -> const ftxui::Element;
+  auto left_pane_view() -> const ftxui::Element;
+  auto middle_pane_view() -> const ftxui::Component;
+  auto right_pane_view() -> const ftxui::Element;
 };
 }; // namespace tufile

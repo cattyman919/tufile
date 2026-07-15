@@ -25,10 +25,23 @@ tufile::App::get_keybinds() {
                     app.terminal_app.Exit();
                     return true;
                   }},
+      App::Action{.keys = {ftxui::Event::Character('h')},
+                  .description = "Prev Dir",
+                  .action = [](App& app) -> bool {
+                    app.terminal_app.PostEvent(
+                        ftxui::Event::Special("PreviousDir"));
+                    return true;
+                  }},
+      App::Action{.keys = {ftxui::Event::Character('l')},
+                  .description = "Next Dir",
+                  .action = [](App& app) -> bool {
+                    app.terminal_app.PostEvent(
+                        ftxui::Event::Special("NextDir"));
+                    return true;
+                  }},
       App::Action{.keys = {ftxui::Event::Character('.')},
                   .description = "Toggle hidden",
                   .action = [](App& app) -> bool {
-                    app.show_hidden_files = !app.show_hidden_files;
                     app.terminal_app.PostEvent(ftxui::Event::Special("Rescan"));
                     return true;
                   }},
@@ -44,26 +57,11 @@ tufile::App::get_keybinds() {
 
   return binds;
 }
-auto tufile::App::get_parent_file_entries()
-    -> std::vector<std::filesystem::directory_entry> {
-  auto file_entries =
-      std::filesystem::directory_iterator{this->cwd.parent_path()};
 
-  std::vector<std::filesystem::directory_entry> entries;
-  for (const auto& entry : file_entries) {
-    const auto& filename = entry.path().filename().string();
-    if (filename.starts_with('.') && !this->show_hidden_files) {
-      continue;
-    }
-    entries.emplace_back(entry);
-  }
+auto tufile::App::get_file_entries(const std::filesystem::path& path)
+    -> const std::vector<std::filesystem::directory_entry> {
 
-  return entries;
-}
-
-auto tufile::App::get_cwd_file_entries()
-    -> std::vector<std::filesystem::directory_entry> {
-  auto file_entries = std::filesystem::directory_iterator{this->cwd};
+  auto file_entries = std::filesystem::directory_iterator{path};
 
   std::vector<std::filesystem::directory_entry> entries;
   for (const auto& entry : file_entries) {
@@ -78,8 +76,10 @@ auto tufile::App::get_cwd_file_entries()
 }
 
 auto tufile::App::run() -> void {
-  this->cwd_entries = this->get_cwd_file_entries();
-  this->parent_entries = this->get_parent_file_entries();
+  this->cwd_entries = this->get_file_entries(this->cwd);
+  this->parent_entries = this->get_file_entries(this->cwd.parent_path());
+
+  // this->refresh_state(this->cwd);
 
   auto middle_pane = this->middle_pane_view();
 
@@ -99,17 +99,64 @@ auto tufile::App::run() -> void {
             });
           }) |
       ftxui::CatchEvent(
-          [this](ftxui::Event event) { return this->handle_event(event); });
-
-  // auto layout = ftxui::hbox({component, component, component});
+          [&](ftxui::Event event) { return this->handle_event(event); });
 
   this->terminal_app.Loop(component);
+}
+auto tufile::App::refresh_state(const std::filesystem::path& path) -> void {
+  this->cwd_entries = this->get_file_entries(path);
+  this->parent_entries = this->get_file_entries(path.parent_path());
+
+  auto entries_view =
+      [&](std::vector<std::filesystem::directory_entry>& entries) {
+        return entries | std::views::transform(
+                             [](std::filesystem::directory_entry entry) {
+                               if (entry.is_directory()) {
+                                 return "D " + entry.path().filename().string();
+                               }
+                               return entry.path().filename().string();
+                             });
+      };
+
+  auto cwd_entries_view = entries_view(this->cwd_entries);
+  auto parent_entries_view = entries_view(this->parent_entries);
+
+  if (this->selected_index >= this->cwd_entry_names.size()) {
+    this->selected_index =
+        this->cwd_entry_names.empty() ? 0 : this->cwd_entry_names.size() - 1;
+  }
+
+  this->cwd_entry_names.assign(cwd_entries_view.begin(),
+                               cwd_entries_view.end());
+
+  this->parent_entry_names.assign(parent_entries_view.begin(),
+                                  parent_entries_view.end());
 }
 
 auto tufile::App::handle_event(ftxui::Event event) -> bool {
   if (event == ftxui::Event::Special("Rescan")) {
-    this->cwd_entries = this->get_cwd_file_entries();
-    this->parent_entries = this->get_parent_file_entries();
+    this->show_hidden_files = !this->show_hidden_files;
+    this->refresh_state(this->cwd);
+    return true;
+  } else if (event == ftxui::Event::Special("PreviousDir")) {
+    this->cwd = cwd.parent_path();
+    this->refresh_state(this->cwd);
+    return true;
+  } else if (event == ftxui::Event::Special("NextDir")) {
+    // selected_index has to be valid
+    assert(this->selected_index < cwd_entry_names.size());
+
+    auto clone_cwd{this->cwd};
+    const auto target_path = clone_cwd.append(
+        this->cwd_entries[this->selected_index].path().filename().string());
+
+    if (std::filesystem::is_directory(target_path)) {
+      this->cwd = target_path;
+      this->refresh_state(target_path);
+      return true;
+    }
+
+    // Do nothing
     return true;
   }
 
@@ -123,7 +170,7 @@ auto tufile::App::handle_event(ftxui::Event event) -> bool {
   return false; // everything else passes through to menu
 }
 
-auto tufile::App::footer_view() -> ftxui::Element {
+auto tufile::App::footer_view() -> const ftxui::Element {
   std::vector<ftxui::Element> elements;
   elements.reserve(50);
 
@@ -179,7 +226,7 @@ auto tufile::App::footer_view() -> ftxui::Element {
   return ftxui::hbox(elements);
 }
 
-auto tufile::App::left_pane_view() -> ftxui::Element {
+auto tufile::App::left_pane_view() -> const ftxui::Element {
   auto parent_entries_view =
       this->parent_entries |
       std::views::transform([](std::filesystem::directory_entry entry) {
@@ -203,13 +250,13 @@ auto tufile::App::left_pane_view() -> ftxui::Element {
   return left_pane;
 }
 
-auto tufile::App::right_pane_view() -> ftxui::Element {
+auto tufile::App::right_pane_view() -> const ftxui::Element {
   // File / Directory Info
   auto right_pane = ftxui::text("Right Pane") | ftxui::border;
   return right_pane;
 }
 
-auto tufile::App::middle_pane_view() -> ftxui::Component {
+auto tufile::App::middle_pane_view() -> const ftxui::Component {
   auto entries_view =
       this->cwd_entries |
       std::views::transform([](std::filesystem::directory_entry entry) {
