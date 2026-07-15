@@ -1,13 +1,29 @@
 #pragma once
 
+#include <cstddef>
+#include <filesystem>
 #include <ftxui/component/app.hpp>
+#include <ftxui/component/event.hpp>
+#include <ftxui/dom/elements.hpp>
 #include <string>
 #include <vector>
 
 namespace tufile {
 
+constexpr size_t TOTAL_KEYBINDS = 3;
+
 class App final {
 public:
+  bool show_hidden_files{false};
+
+  struct Action {
+    std::vector<ftxui::Event> keys;
+    std::string description;
+    std::function<bool(App&)> action;
+  };
+
+  static const std::array<Action, TOTAL_KEYBINDS>& get_keybinds();
+
   App() {}
   // Remove copy constructor
   App(const App&) = delete;
@@ -22,17 +38,26 @@ private:
   inline static ftxui::App terminal_app{
       ftxui::App::FullscreenAlternateScreen()};
 
-  bool show_hidden_files{false};
+  std::filesystem::path cwd{std::filesystem::current_path()};
 
-  auto handle_key_event(ftxui::Event event) -> bool;
+  std::vector<std::filesystem::directory_entry> cwd_entries;
+  std::vector<std::filesystem::directory_entry> parent_entries;
 
-  // 1. Define Action inside App
-  struct Action {
-    std::vector<std::string> keys;
-    std::string description;
-    std::function<bool(App&)> action;
-  };
+  std::vector<std::string> cwd_entry_names;
+  std::vector<std::string> parent_entry_names;
 
-  static const std::array<Action, 2> keybinds;
+  int selected_index{0};
+
+  auto get_cwd_file_entries() -> std::vector<std::filesystem::directory_entry>;
+  auto get_parent_file_entries()
+      -> std::vector<std::filesystem::directory_entry>;
+
+  auto handle_event(ftxui::Event event) -> bool;
+
+  /// View
+  auto footer_view() -> ftxui::Element;
+  auto left_pane_view() -> ftxui::Element;
+  auto middle_pane_view() -> ftxui::Component;
+  auto right_pane_view() -> ftxui::Element;
 };
 }; // namespace tufile
