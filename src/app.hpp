@@ -54,13 +54,14 @@ private:
   auto handle_event(ftxui::Event event) -> bool;
 
   // update current refresh state
-  auto refresh_state(const std::filesystem::path& path) -> void;
+  auto update_path(const std::filesystem::path& path) -> void;
 
   // update to a new directory path
   // auto next_dir_state(const std::filesystem::path& path) -> void;
   // auto prev_dir_state(const std::filesystem::path& path) -> void;
 
   /// View
+  auto header_view() -> const ftxui::Element;
   auto footer_view() -> const ftxui::Element;
   auto left_pane_view() -> const ftxui::Element;
   auto middle_pane_view() -> const ftxui::Component;

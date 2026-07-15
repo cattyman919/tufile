@@ -88,6 +88,7 @@ auto tufile::App::run() -> void {
           middle_pane,
           [&] {
             return ftxui::vbox({
+                this->header_view(),
                 ftxui::hbox({
                     this->left_pane_view() | ftxui::flex_grow_factor(1),
                     ftxui::window(ftxui::text(this->cwd.filename().string()),
@@ -103,7 +104,8 @@ auto tufile::App::run() -> void {
 
   this->terminal_app.Loop(component);
 }
-auto tufile::App::refresh_state(const std::filesystem::path& path) -> void {
+auto tufile::App::update_path(const std::filesystem::path& path) -> void {
+  this->cwd = path;
   this->cwd_entries = this->get_file_entries(path);
   this->parent_entries = this->get_file_entries(path.parent_path());
 
@@ -123,7 +125,7 @@ auto tufile::App::refresh_state(const std::filesystem::path& path) -> void {
 
   if (this->selected_index >= this->cwd_entry_names.size()) {
     this->selected_index =
-        this->cwd_entry_names.empty() ? 0 : this->cwd_entry_names.size() - 1;
+        this->cwd_entry_names.empty() ? -1 : this->cwd_entry_names.size() - 1;
   }
 
   this->cwd_entry_names.assign(cwd_entries_view.begin(),
@@ -136,23 +138,24 @@ auto tufile::App::refresh_state(const std::filesystem::path& path) -> void {
 auto tufile::App::handle_event(ftxui::Event event) -> bool {
   if (event == ftxui::Event::Special("Rescan")) {
     this->show_hidden_files = !this->show_hidden_files;
-    this->refresh_state(this->cwd);
+    this->update_path(this->cwd);
     return true;
+
   } else if (event == ftxui::Event::Special("PreviousDir")) {
-    this->cwd = cwd.parent_path();
-    this->refresh_state(this->cwd);
+    this->update_path(cwd.parent_path());
     return true;
+
   } else if (event == ftxui::Event::Special("NextDir")) {
-    // selected_index has to be valid
-    assert(this->selected_index < cwd_entry_names.size());
+    if (this->selected_index == -1) {
+      return true;
+    }
 
     auto clone_cwd{this->cwd};
     const auto target_path = clone_cwd.append(
         this->cwd_entries[this->selected_index].path().filename().string());
 
     if (std::filesystem::is_directory(target_path)) {
-      this->cwd = target_path;
-      this->refresh_state(target_path);
+      this->update_path(target_path);
       return true;
     }
 
@@ -168,6 +171,10 @@ auto tufile::App::handle_event(ftxui::Event event) -> bool {
   }
 
   return false; // everything else passes through to menu
+}
+
+auto tufile::App::header_view() -> const ftxui::Element {
+  return ftxui::text(this->cwd.string());
 }
 
 auto tufile::App::footer_view() -> const ftxui::Element {
