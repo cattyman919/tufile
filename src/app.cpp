@@ -3,7 +3,10 @@
 #include <array>
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
+#include <cstdio>
 #include <filesystem>
+#include <format>
 #include <ftxui/component/app.hpp>
 #include <ftxui/component/component.hpp>
 
@@ -14,6 +17,8 @@
 #include <ftxui/screen/screen.hpp>
 #include <ftxui/screen/string.hpp>
 #include <ranges>
+#include <string>
+#include <system_error>
 #include <vector>
 
 const std::array<tufile::App::Action, tufile::TOTAL_KEYBINDS>&
@@ -76,10 +81,7 @@ auto tufile::App::get_file_entries(const std::filesystem::path& path)
 }
 
 auto tufile::App::run() -> void {
-  this->cwd_entries = this->get_file_entries(this->cwd);
-  this->parent_entries = this->get_file_entries(this->cwd.parent_path());
-
-  // this->refresh_state(this->cwd);
+  this->update_path(this->cwd);
 
   auto middle_pane = this->middle_pane_view();
 
@@ -233,6 +235,7 @@ auto tufile::App::footer_view() -> const ftxui::Element {
   return ftxui::hbox(elements);
 }
 
+// Parent component
 auto tufile::App::left_pane_view() -> const ftxui::Element {
   auto parent_entries_view =
       this->parent_entries |
@@ -257,21 +260,82 @@ auto tufile::App::left_pane_view() -> const ftxui::Element {
   return left_pane;
 }
 
+auto permission_string(std::filesystem::perms p) -> std::string {
+  using std::filesystem::perms;
+
+  std::string result;
+  result.reserve(9);
+
+  auto show = [&](char op, perms perm) {
+    char permChar = (perms::none == (perm & p) ? '-' : op);
+    result.push_back(permChar);
+  };
+
+  show('r', perms::owner_read);
+  show('w', perms::owner_write);
+  show('x', perms::owner_exec);
+  show('r', perms::group_read);
+  show('w', perms::group_write);
+  show('x', perms::group_exec);
+  show('r', perms::others_read);
+  show('w', perms::others_write);
+  show('x', perms::others_exec);
+
+  return result;
+}
+
+auto file_type_string(std::filesystem::file_type f_type) -> std::string {
+
+  switch (f_type) {
+  case std::filesystem::file_type::regular:
+    return "File";
+  case std::filesystem::file_type::directory:
+    return "Directory";
+  case std::filesystem::file_type::block:
+    return "Block";
+  case std::filesystem::file_type::character:
+    return "Character";
+  case std::filesystem::file_type::fifo:
+    return "FIFO";
+  case std::filesystem::file_type::socket:
+    return "Socket";
+  default:
+    return "Unknown";
+  }
+}
+
 auto tufile::App::right_pane_view() -> const ftxui::Element {
+
+  auto clone_cwd{this->cwd};
+  const auto target_path = clone_cwd.append(
+      this->cwd_entries[this->selected_index].path().filename().string());
+
+  std::error_code err;
+  uintmax_t file_size{std::filesystem::file_size(target_path, err)};
+  if (err) {
+    file_size = 0;
+  }
+
+  auto status{std::filesystem::status(target_path, err)};
+  std::string perms_string{permission_string(status.permissions())};
+  std::string file_type_status_string{file_type_string(status.type())};
+  if (err) {
+    perms_string = "Unknown";
+    file_type_status_string = "Unknown";
+  }
+
   // File / Directory Info
-  auto right_pane = ftxui::text("Right Pane") | ftxui::border;
+  auto right_pane =
+      ftxui::vbox({
+          ftxui::text(std::format("File Type : {}", file_type_status_string)),
+          ftxui::text(std::format("File Size : {} Bytes", file_size)),
+          ftxui::text(std::format("Permission : {}", perms_string)),
+      }) |
+      ftxui::border;
   return right_pane;
 }
 
 auto tufile::App::middle_pane_view() -> const ftxui::Component {
-  auto entries_view =
-      this->cwd_entries |
-      std::views::transform([](std::filesystem::directory_entry entry) {
-        return entry.path().filename().string();
-      });
-
-  this->cwd_entry_names.assign(entries_view.begin(), entries_view.end());
-
   auto menu = ftxui::Menu(&this->cwd_entry_names, &this->selected_index);
 
   return menu;
