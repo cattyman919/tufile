@@ -2,3 +2,4 @@
 - [ ] fix footer disappear when list are too large
 - [ ] Sidebar max width
 - [ ] Read the file content
+- [ ] Add Treesitter parser
