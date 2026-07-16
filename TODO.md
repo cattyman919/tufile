@@ -1,3 +1,4 @@
 - [ ] Scrollable when list are large
 - [ ] fix footer disappear when list are too large
 - [ ] Sidebar max width
+- [ ] Read the file content
